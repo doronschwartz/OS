@@ -299,6 +299,15 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    
+    while(1){
+        if(fgpid(jobs) == pid){
+            sleep(1);
+        }
+        else{
+          break;
+        }
+    }
     return;
 }
 
