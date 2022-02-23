@@ -169,14 +169,21 @@ void eval(char *cmdline)
     char buf[MAXLINE];   /* Holds modified command line */
     int bg;              /* Should the job run in bg or fg? */
     pid_t pid;           /* Process id */
+    sigset_t s;   
     
+    sigemptyset(&s);
+    sigaddset(&s,SIGCHLD);
+
+
     strcpy(buf, cmdline);
     bg = parseline(buf, argv); 
     if (argv[0] == NULL)  
 	return;   /* Ignore empty lines */
 
     if (!builtin_command(argv)) { 
+        Sigprocmask(SIG_BLOCK,&s,NULL);
         if ((pid = Fork()) == 0) {   /* Child runs user job */
+             Sigprocmask(SIG_UNBLOCK,&s,NULL);
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
@@ -186,12 +193,18 @@ void eval(char *cmdline)
 	/* Parent waits for foreground job to terminate */
 	if (!bg) {
 	    int status;
-	    if (waitpid(pid, &status, 0) < 0)
+	    addjob(jobs,pid,FG,cmdline);
+        Sigprocmask(SIG_UNBLOCK,&s,NULL);
+        if (waitpid(pid, &status, 0) < 0)
 		unix_error("waitfg: waitpid error");
 	}
-	else
-	    printf("%d %s", pid, cmdline);
+	else{
+	    addjob(jobs,pid,BG,cmdline);
+        Sigprocmask(SIG_UNBLOCK,&s,NULL);
+        //Look what the print 
+        printf("%d %s", pid, cmdline);
     }
+}
     return;
 }
 
@@ -291,7 +304,18 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
-    return;
+    if(argv[1] == NULL){
+        // no id;
+    }
+    // job id givenn
+    if(argv[1] == "%"){
+
+    }
+    // pid given;
+    else{
+
+    }
+    SIGCONT();
 }
 
 /* 
@@ -324,11 +348,14 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-    pid_t pid = fgpid(jobs);
-    kill(-pid,sig);
-    return;
+    pid_t childid;
+    int status;
+    while(childid == (waitpid(-1,&status,WNOHANG|WUNTRACED)>0)){
+        deletejob(jobs,childid);
+        // may need to add cases if prints are necessary, i.e your process was stopped, your process was killed, your process was exited... this idea
+        // lots of time to think and research
+    }
 }
-
 /* 
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
@@ -348,8 +375,11 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    pid_t pid = fgpid(jobs);
+    kill(-pid,sig);
     return;
 }
+
 
 /*********************
  * End signal handlers
