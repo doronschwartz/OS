@@ -181,9 +181,9 @@ void eval(char *cmdline)
 	return;   /* Ignore empty lines */
 
     if (!builtin_command(argv)) { 
-        Sigprocmask(SIG_BLOCK,&s,NULL);
-        if ((pid = Fork()) == 0) {   /* Child runs user job */
-             Sigprocmask(SIG_UNBLOCK,&s,NULL);
+        sigprocmask(SIG_BLOCK,&s,NULL);
+        if ((pid = fork()) == 0) {   /* Child runs user job */
+             sigprocmask(SIG_UNBLOCK,&s,NULL);
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
@@ -194,13 +194,13 @@ void eval(char *cmdline)
 	if (!bg) {
 	    int status;
 	    addjob(jobs,pid,FG,cmdline);
-        Sigprocmask(SIG_UNBLOCK,&s,NULL);
+        sigprocmask(SIG_UNBLOCK,&s,NULL);
         if (waitpid(pid, &status, 0) < 0)
 		unix_error("waitfg: waitpid error");
 	}
 	else{
 	    addjob(jobs,pid,BG,cmdline);
-        Sigprocmask(SIG_UNBLOCK,&s,NULL);
+        sigprocmask(SIG_UNBLOCK,&s,NULL);
         //Look what the print 
         printf("%d %s", pid, cmdline);
     }
