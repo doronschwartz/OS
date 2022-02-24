@@ -180,7 +180,7 @@ void eval(char *cmdline)
     if (argv[0] == NULL)  
 	return;   /* Ignore empty lines */
 
-    if (!builtin_command(argv)) { 
+    if (!builtin_cmd(argv)) { 
         sigprocmask(SIG_BLOCK,&s,NULL);
         if ((pid = fork()) == 0) {   /* Child runs user job */
              sigprocmask(SIG_UNBLOCK,&s,NULL);
@@ -208,15 +208,7 @@ void eval(char *cmdline)
     return;
 }
 
-/* If first arg is a builtin command, run it and return true */
-int builtin_command(char **argv) 
-{
-    if (!strcmp(argv[0], "quit")) /* quit command */
-	exit(0);  
-    if (!strcmp(argv[0], "&"))    /* Ignore singleton & */
-	return 1;
-  
-}
+
 
 /* 
  * parseline - Parse the command line and build the argv array.
@@ -287,6 +279,7 @@ int builtin_cmd(char **argv)
     }
     else if(!strcmp(argv[0],"jobs")){
         listjobs(jobs);
+        return 1;
     }
     else if(!strcmp(argv[0],"fg")){
         do_bgfg(argv);
