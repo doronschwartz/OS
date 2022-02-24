@@ -304,18 +304,41 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    struct job_t* jb = NULL;
     if(argv[1] == NULL){
         // no id;
     }
     // job id givenn
-    if(argv[1] == "%"){
-
+    if(argv[1][0] == "%"){
+        if(isdigit(argv[1][1])){
+            int jobid = atoi(&argv[1][1]);
+            //check against the job list
+            if(!(jb == getjobjid(jobs,jobid))){
+                // some issie no job found based on number
+                return;
+            }
+        }
     }
     // pid given;
     else{
-
+        if(isdigit(argv[1][0])){
+            pid_t pdt = atoi(argv[1][0]);
+            if(!(jb == getjobpid(jobs,pdt))){
+                // issue, print later some bullshit
+                return;
+            }
+        }
     }
-    SIGCONT();
+
+    kill(-jb->pid,SIGCONT);
+    if(!strcmp(argv[0], "bg")){
+        jb->state = BG;
+        // print status maybe?
+    }
+    else{
+        jb->state = FG;
+        waitfg(jb->pid);
+    }
 }
 
 /* 
