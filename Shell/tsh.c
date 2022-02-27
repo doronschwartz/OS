@@ -1,7 +1,7 @@
 /* 
  * tsh - A tiny shell program with job control
  * 
- * <Yaakov Bienstock 800343252>
+ * <Yaakov Bienstock ybiensto>
  */
 #include <stdio.h>
 #include <stdlib.h>
