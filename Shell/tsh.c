@@ -171,19 +171,21 @@ void eval(char *cmdline)
     pid_t pid;           /* Process id */
     sigset_t s;   
     
-    sigemptyset(&s);
-    sigaddset(&s,SIGCHLD);
-
-
+    
     strcpy(buf, cmdline);
     bg = parseline(buf, argv); 
     if (argv[0] == NULL)  
 	return;   /* Ignore empty lines */
 
     if (!builtin_cmd(argv)) { 
+        sigemptyset(&s);
+        sigaddset(&s,SIGINT);
+        sigaddset(&s,SIGTSTP);
+        sigaddset(&s,SIGCHLD);
         sigprocmask(SIG_BLOCK,&s,NULL);
         if ((pid = fork()) == 0) {   /* Child runs user job */
-             sigprocmask(SIG_UNBLOCK,&s,NULL);
+            setpgid(0,0);  
+            sigprocmask(SIG_UNBLOCK,&s,NULL);
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
@@ -195,8 +197,8 @@ void eval(char *cmdline)
 	    int status;
 	    addjob(jobs,pid,FG,cmdline);
         sigprocmask(SIG_UNBLOCK,&s,NULL);
-        if (waitpid(pid, &status, 0) < 0)
-		unix_error("waitfg: waitpid error");
+        waitfg(pid);
+		
 	}
 	else{
 	    addjob(jobs,pid,BG,cmdline);
@@ -380,7 +382,9 @@ void sigchld_handler(int sig)
 void sigint_handler(int sig) 
 {
     pid_t pid = fgpid(jobs);
-    kill(-pid,sig);
+    if(pid != 0){
+        kill(-pid,sig);
+    }
     return;
 }
 
