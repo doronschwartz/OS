@@ -424,6 +424,17 @@ static struct {
   { "SERVER_SOFTWARE",          &zServerSoftware },
 };
 
+//todo: create a fixed size pool of worker threads
+typdef pool pool_t; //data structure for worker thread pool
+
+thread_t master; //master thread to create other threads
+
+struct wthread_pool { //linked list to store worker threads
+  thread_t next; //next thread in pool
+};
+
+typdef struct wthread_pool wthread_pool_t;
+
 
 /*
 ** Double any double-quote characters in a string.  This is used to
