@@ -2417,6 +2417,10 @@ typedef union {
 ** final argument.
 */
 int http_server(const char *zPort, int localOnly, int * httpConnection){
+  /*
+  todo: instead of forking (2511) a separate copy for each incoming connection, select a thread from the pool 
+  **/
+
   int listener[20];            /* The server sockets */
   int connection;              /* A socket for each individual connection */
   fd_set readfds;              /* Set of file descriptors for select() */
