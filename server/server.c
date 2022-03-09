@@ -425,15 +425,15 @@ static struct {
 };
 
 //todo: create a fixed size pool of worker threads
-typdef pool pool_t; //data structure for worker thread pool
+// typedef struct pool pool_t; //data structure for worker thread pool
 
-thread_t master; //master thread to create other threads
+pthread_t master; //master thread to create other threads
 
 struct wthread_pool { //linked list to store worker threads
-  thread_t next; //next thread in pool
+  pthread_t next; //next thread in pool
 };
 
-typdef struct wthread_pool wthread_pool_t;
+typedef struct wthread_pool wthread_pool_t;
 
 
 /*
