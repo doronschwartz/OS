@@ -424,6 +424,17 @@ static struct {
   { "SERVER_SOFTWARE",          &zServerSoftware },
 };
 
+//todo: create a fixed size pool of worker threads
+// typedef struct pool pool_t; //data structure for worker thread pool
+
+pthread_t master; //master thread to create other threads
+
+struct wthread_pool { //linked list to store worker threads
+  pthread_t next; //next thread in pool
+};
+
+typedef struct wthread_pool wthread_pool_t;
+
 
 /*
 ** Double any double-quote characters in a string.  This is used to
@@ -2417,6 +2428,10 @@ typedef union {
 ** final argument.
 */
 int http_server(const char *zPort, int localOnly, int * httpConnection){
+  /*
+  todo: instead of forking (2511) a separate copy for each incoming connection, select a thread from the pool 
+  **/
+
   int listener[20];            /* The server sockets */
   int connection;              /* A socket for each individual connection */
   fd_set readfds;              /* Set of file descriptors for select() */
@@ -2504,9 +2519,17 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
+
+          //master thread creates a new thread to process incoming connection
+          pthread_t id = wthread_pool.next; //create the next available thread in the pool
+
+          pthread_create(&id, NULL, "which func?", NULL); //creates a new thread that executes the function
+          pthread_join(id, NULL);
+
           child = fork();
-          if( child!=0 ){
-            if( child>0 ) nchildren++;
+            //todo: should check here if the thread was created successfully
+          if(child != 0) {
+            if (child>0) nchildren++;
             close(connection);
             /* printf("subprocess %d started...\n", child); fflush(stdout); */
           }else{
