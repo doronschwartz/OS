@@ -443,6 +443,10 @@ struct Queue {
   int rear;
 } Queue;
 
+//number of worker threads to create in the pool, passed in from command line
+int numThreads;
+
+
 /*
 ** Double any double-quote characters in a string.  This is used to
 ** quote strings for output into the CSV log file.
@@ -2638,6 +2642,13 @@ int main(int argc, const char **argv){
       TestParseRfc822Date();
       printf("Ok\n");
       exit(0);
+    } else if (strcmp(z, "-threads")) {
+    //check threads argument
+      numThreads = zArg;
+    // } else if () {
+      //buffers
+    // } else if () {
+      //shedlag
     }else{
       Malfunction(515, /* LOG: unknown command-line argument on launch */
                   "unknown argument: [%s]\n", z);
