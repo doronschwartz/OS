@@ -435,6 +435,13 @@ struct wthread_pool { //linked list to store worker threads
 
 typedef struct wthread_pool wthread_pool_t;
 
+//queue for fifo 
+struct Queue {
+  int cap;
+  int size;
+  int front;
+  int rear;
+} Queue;
 
 /*
 ** Double any double-quote characters in a string.  This is used to
@@ -2515,7 +2522,7 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
     }
     select( maxFd+1, &readfds, 0, 0, &delay);
     for(i=0; i<n; i++){
-      if( FD_ISSET(listener[i], &readfds) ){
+      if( FD_ISSEfT(listener[i], &readfds) ){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
@@ -2523,10 +2530,11 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
           //master thread creates a new thread to process incoming connection
           pthread_t id = wthread_pool.next; //create the next available thread in the pool
 
-          pthread_create(&id, NULL, "which func?", NULL); //creates a new thread that executes the function
+
+          pthread_create(&id, NULL, main, NULL); //creates a new thread that executes the function
           pthread_join(id, NULL);
 
-          child = fork();
+          // child = fork();
             //todo: should check here if the thread was created successfully
           if(child != 0) {
             if (child>0) nchildren++;
