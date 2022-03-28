@@ -2434,6 +2434,12 @@ typedef union {
   struct sockaddr_storage sas;     /* Should be the maximum of the above 3 */
 } address;
 
+void* ThreadedRequest(void *args) {
+  int httpConnection = atoi(args);
+  ProcessOneRequest(1, httpConnection); 
+  return NULL;
+}
+
 /*
 ** Implement an HTTP server daemon listening on port zPort.
 **
@@ -2543,10 +2549,10 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
           //master thread creates a new thread to process incoming connection
           pthread_t id = wpool.next; //create the next available thread in the pool
           //create a new thread to process the connection
-          pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
-          // pthread_create(&id, NULL, ProcessOneRequest, (void*)connection); //creates a new thread that executes the function
+          // pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
+          child = pthread_create(&id, NULL, ThreadedRequest, (void*)(long long)connection); //creates a new thread that executes the function
           //wait for the thread to finish executing 
-          child = pthread_join(id, NULL);
+          pthread_join(id, NULL);
           // child = fork();
           //todo: should check here if the thread was created successfully
           if(child != 0) {
