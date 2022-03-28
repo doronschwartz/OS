@@ -448,6 +448,10 @@ struct Queue {
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
 
+//create a buffer 
+//condition variables
+int condition; 
+
 
 /*
 ** Double any double-quote characters in a string.  This is used to
@@ -2536,13 +2540,12 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
           //master thread creates a new thread to process incoming connection
           pthread_t id = wpool.next; //create the next available thread in the pool
           //create a new thread to process the connection
-          pthread_create(&id, NULL, http_server, (void*)connection); //creates a new thread that executes the function
+          pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
           // pthread_create(&id, NULL, ProcessOneRequest, (void*)connection); //creates a new thread that executes the function
           //wait for the thread to finish executing 
-          pthread_join(id, NULL);
-
+          child = pthread_join(id, NULL);
           // child = fork();
-            //todo: should check here if the thread was created successfully
+          //todo: should check here if the thread was created successfully
           if(child != 0) {
             if (child>0) nchildren++;
             close(connection);
