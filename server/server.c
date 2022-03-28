@@ -430,10 +430,12 @@ static struct {
 pthread_t master; //master thread to create other threads
 
 struct wthread_pool { //linked list to store worker threads
+  int size;
   pthread_t next; //next thread in pool
 };
 
 typedef struct wthread_pool wthread_pool_t;
+wthread_pool_t wpool; //worker thread pool
 
 //queue for fifo 
 struct Queue {
@@ -2526,16 +2528,17 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
     }
     select( maxFd+1, &readfds, 0, 0, &delay);
     for(i=0; i<n; i++){
-      if( FD_ISSEfT(listener[i], &readfds) ){
+      if( FD_ISSET(listener[i], &readfds) ){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
 
           //master thread creates a new thread to process incoming connection
-          pthread_t id = wthread_pool.next; //create the next available thread in the pool
-
-
-          pthread_create(&id, NULL, main, NULL); //creates a new thread that executes the function
+          pthread_t id = wpool.next; //create the next available thread in the pool
+          //create a new thread to process the connection
+          pthread_create(&id, NULL, http_server, (void*)connection); //creates a new thread that executes the function
+          // pthread_create(&id, NULL, ProcessOneRequest, (void*)connection); //creates a new thread that executes the function
+          //wait for the thread to finish executing 
           pthread_join(id, NULL);
 
           // child = fork();
@@ -2644,7 +2647,12 @@ int main(int argc, const char **argv){
       exit(0);
     } else if (strcmp(z, "-threads")) {
     //check threads argument
-      numThreads = zArg;
+      //cast zArg to int
+      numThreads = atoi(zArg);
+      // numThreads = zArg;
+      //create a thread pool of required size;
+      wpool.size = numThreads;
+      wpool.next = 0; //fixme: g-d knows what is going on here.
     // } else if () {
       //buffers
     // } else if () {
