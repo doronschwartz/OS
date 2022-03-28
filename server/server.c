@@ -254,6 +254,7 @@
 ** Because of security rule (7), there is no way for the content of the "-auth"
 ** file to leak out via HTTP request.
 */
+
 #include <stdio.h>
 #include <ctype.h>
 #include <syslog.h>
@@ -277,6 +278,8 @@
 #include <errno.h>
 #include <sys/resource.h>
 #include <signal.h>
+#include <pthread.h>
+
 #ifdef linux
 #include <sys/sendfile.h>
 #endif
