@@ -254,6 +254,7 @@
 ** Because of security rule (7), there is no way for the content of the "-auth"
 ** file to leak out via HTTP request.
 */
+
 #include <stdio.h>
 #include <ctype.h>
 #include <syslog.h>
@@ -277,6 +278,8 @@
 #include <errno.h>
 #include <sys/resource.h>
 #include <signal.h>
+#include <pthread.h>
+
 #ifdef linux
 #include <sys/sendfile.h>
 #endif
@@ -383,7 +386,6 @@ static void Malfunction(int errNo, const char *zFormat, ...);
 
 #define althttpd_printf printf
 
-
 /*
 ** Mapping between CGI variable names and values stored in
 ** global variables.
@@ -430,10 +432,12 @@ static struct {
 pthread_t master; //master thread to create other threads
 
 struct wthread_pool { //linked list to store worker threads
+  int size;
   pthread_t next; //next thread in pool
 };
 
 typedef struct wthread_pool wthread_pool_t;
+wthread_pool_t wpool; //worker thread pool
 
 //queue for fifo 
 struct Queue {
@@ -445,6 +449,10 @@ struct Queue {
 
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
+
+//create a buffer 
+//condition variables
+int condition; 
 
 
 /*
@@ -2425,6 +2433,12 @@ typedef union {
   struct sockaddr_storage sas;     /* Should be the maximum of the above 3 */
 } address;
 
+void* ThreadedRequest(void *args) {
+  int httpConnection = atoi(args);
+  ProcessOneRequest(1, httpConnection); 
+  return NULL;
+}
+
 /*
 ** Implement an HTTP server daemon listening on port zPort.
 **
@@ -2442,6 +2456,7 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
   /*
   todo: instead of forking (2511) a separate copy for each incoming connection, select a thread from the pool 
   **/
+
 
   int listener[20];            /* The server sockets */
   int connection;              /* A socket for each individual connection */
@@ -2526,20 +2541,20 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
     }
     select( maxFd+1, &readfds, 0, 0, &delay);
     for(i=0; i<n; i++){
-      if( FD_ISSEfT(listener[i], &readfds) ){
+      if( FD_ISSET(listener[i], &readfds) ){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
 
           //master thread creates a new thread to process incoming connection
-          pthread_t id = wthread_pool.next; //create the next available thread in the pool
-
-
-          pthread_create(&id, NULL, main, NULL); //creates a new thread that executes the function
+          pthread_t id = wpool.next; //create the next available thread in the pool
+          //create a new thread to process the connection
+          // pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
+          child = pthread_create(&id, NULL, ThreadedRequest, (void*)(long long)connection); //creates a new thread that executes the function
+          //wait for the thread to finish executing 
           pthread_join(id, NULL);
-
           // child = fork();
-            //todo: should check here if the thread was created successfully
+          //todo: should check here if the thread was created successfully
           if(child != 0) {
             if (child>0) nchildren++;
             close(connection);
@@ -2644,7 +2659,12 @@ int main(int argc, const char **argv){
       exit(0);
     } else if (strcmp(z, "-threads")) {
     //check threads argument
-      numThreads = zArg;
+      //cast zArg to int
+      numThreads = atoi(zArg);
+      // numThreads = zArg;
+      //create a thread pool of required size;
+      wpool.size = numThreads;
+      wpool.next = 0; //fixme: g-d knows what is going on here.
     // } else if () {
       //buffers
     // } else if () {
