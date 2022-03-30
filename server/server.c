@@ -2545,7 +2545,7 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
-
+          // need to create some conditional locks before we create 
           //master thread creates a new thread to process incoming connection
           pthread_t id = wpool.next; //create the next available thread in the pool
           //create a new thread to process the connection
@@ -2562,10 +2562,10 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
           }else{
             int nErr = 0, fd;
             close(0);
-            fd = dup(connection);
+            fd = dup(connection);//pass in file descriptor, lowest unused, replaces stdin, now reading network connection as if charachter on keyboard
             if( fd!=0 ) nErr++;
-            close(1);
-            fd = dup(connection);
+            close(1);//Standard out closed
+            fd = dup(connection);//printf will now print to file connection
             if( fd!=1 ) nErr++;
             close(connection);
             *httpConnection = fd;
