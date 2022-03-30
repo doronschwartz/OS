@@ -2560,6 +2560,8 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
             close(connection);
             /* printf("subprocess %d started...\n", child); fflush(stdout); */
           }else{
+            // Sll globals that need to be made unique for this thread. Piazza post on how to make thread local.
+            //Really need to print and read from a file instead of this
             int nErr = 0, fd;
             close(0);
             fd = dup(connection);//pass in file descriptor, lowest unused, replaces stdin, now reading network connection as if charachter on keyboard
@@ -2568,7 +2570,9 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
             fd = dup(connection);//printf will now print to file connection
             if( fd!=1 ) nErr++;
             close(connection);
-            *httpConnection = fd;
+            //Difficulity, new process versus new threads, all threads share them, so unlike the fork , modify for all, this strategy of replacing standard in
+            // standard out will not work. First thread will kill us, will lose many connections.
+            *httpConnection = fd; // whatever this points to, we shove the file descriptor, so that later it will be stored there
             return nErr;
           }
         }
