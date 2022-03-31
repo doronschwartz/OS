@@ -440,12 +440,18 @@ typedef struct wthread_pool wthread_pool_t;
 wthread_pool_t wpool; //worker thread pool
 
 //queue for fifo 
-struct Queue {
-  int cap;
+struct Buffer {
+  int capacity;
   int size;
   int front;
   int rear;
-} Queue;
+} Buffer;
+
+
+//allocate memory for buffer
+Buffer buf = malloc(sizeof(Buffer))
+//free buffer memory
+free(buf); //fixme: this should probably go at the end somewhere
 
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
