@@ -447,10 +447,12 @@ struct Buffer {
   int rear;
 };
 
-
+static char *SafeMalloc(size_t size);
 //allocate memory for buffer
 typedef struct Buffer Buffer_t;
-Buffer_t buf;// malloc(sizeof(Buffer_t));
+Buffer_t *buf;
+// Buffer_t *buf = malloc(sizeof(Buffer_t));
+// (sizeof(Buffer_t));
 
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
@@ -2550,6 +2552,7 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
+          buf = malloc(sizeof(Buffer_t));
           // need to create some conditional locks before we create 
           //master thread creates a new thread to process incoming connection
           pthread_t id = wpool.next; //create the next available thread in the pool
@@ -2783,7 +2786,7 @@ int main(int argc, const char **argv){
   }
   ProcessOneRequest(1, httpConnection);
   tls_close_conn();
-  // free(buf); //fixme:
+  free(buf); //fixme:
   exit(0);
 }
 
