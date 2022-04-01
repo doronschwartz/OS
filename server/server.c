@@ -445,11 +445,12 @@ struct Buffer {
   int size;
   int front;
   int rear;
-} Buffer;
+};
 
 
 //allocate memory for buffer
-Buffer buf = malloc(sizeof(Buffer))
+typedef struct Buffer Buffer_t;
+Buffer_t buf;// malloc(sizeof(Buffer_t));
 
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
@@ -2782,7 +2783,7 @@ int main(int argc, const char **argv){
   }
   ProcessOneRequest(1, httpConnection);
   tls_close_conn();
-  free(buf);
+  // free(buf); //fixme:
   exit(0);
 }
 
