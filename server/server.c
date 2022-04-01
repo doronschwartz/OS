@@ -577,7 +577,7 @@ static void MakeLogEntry(int exitCode, int lineNum){
     }
   }
   if( closeConnection ){
-    exit(exitCode);
+    // exit(exitCode);
   }
   statusSent = 0;
 }
