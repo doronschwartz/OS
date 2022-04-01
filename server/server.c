@@ -450,8 +450,6 @@ struct Buffer {
 
 //allocate memory for buffer
 Buffer buf = malloc(sizeof(Buffer))
-//free buffer memory
-free(buf); //fixme: this should probably go at the end somewhere
 
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
@@ -2784,6 +2782,7 @@ int main(int argc, const char **argv){
   }
   ProcessOneRequest(1, httpConnection);
   tls_close_conn();
+  free(buf);
   exit(0);
 }
 
