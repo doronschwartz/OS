@@ -440,12 +440,19 @@ typedef struct wthread_pool wthread_pool_t;
 wthread_pool_t wpool; //worker thread pool
 
 //queue for fifo 
-struct Queue {
-  int cap;
+struct Buffer {
+  int capacity;
   int size;
   int front;
   int rear;
-} Queue;
+};
+
+static char *SafeMalloc(size_t size);
+//allocate memory for buffer
+typedef struct Buffer Buffer_t;
+Buffer_t *buf;
+// Buffer_t *buf = malloc(sizeof(Buffer_t));
+// (sizeof(Buffer_t));
 
 //number of worker threads to create in the pool, passed in from command line
 int numThreads;
@@ -573,7 +580,7 @@ static void MakeLogEntry(int exitCode, int lineNum){
     }
   }
   if( closeConnection ){
-    exit(exitCode);
+    // exit(exitCode);
   }
   statusSent = 0;
 }
@@ -2434,8 +2441,11 @@ typedef union {
 } address;
 
 void* ThreadedRequest(void *args) {
-  int httpConnection = atoi(args);
+  printf("foo\n");
+  long httpConnection = (long)args;
+  printf("%ld", httpConnection);
   ProcessOneRequest(1, httpConnection); 
+  printf("hello");
   return NULL;
 }
 
@@ -2545,12 +2555,18 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
         lenaddr = sizeof(inaddr);
         connection = accept(listener[i], &inaddr.sa, &lenaddr);
         if( connection>=0 ){
+          buf = malloc(sizeof(Buffer_t));
           // need to create some conditional locks before we create 
           //master thread creates a new thread to process incoming connection
           pthread_t id = wpool.next; //create the next available thread in the pool
           //create a new thread to process the connection
           // pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
-          child = pthread_create(&id, NULL, ThreadedRequest, (void*)(long long)connection); //creates a new thread that executes the function
+          
+          //! TODO: place file descriptor describing this connection in the buffer, replace all instances of stdin to this fd
+          FILE* fd = stdin;
+          // buf->rear = fd;
+          //? where does the fd go?? in the fourth arg??
+          child = pthread_create(&id, NULL, ThreadedRequest, &fd); //creates a new thread that executes the function
           //wait for the thread to finish executing 
           pthread_join(id, NULL);
           // child = fork();
@@ -2778,6 +2794,7 @@ int main(int argc, const char **argv){
   }
   ProcessOneRequest(1, httpConnection);
   tls_close_conn();
+  free(buf); //fixme:
   exit(0);
 }
 
