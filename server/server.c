@@ -2441,8 +2441,11 @@ typedef union {
 } address;
 
 void* ThreadedRequest(void *args) {
-  int httpConnection = atoi(args);
+  printf("foo\n");
+  long httpConnection = (long)args;
+  printf("%ld", httpConnection);
   ProcessOneRequest(1, httpConnection); 
+  printf("hello");
   return NULL;
 }
 
@@ -2558,6 +2561,10 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
           pthread_t id = wpool.next; //create the next available thread in the pool
           //create a new thread to process the connection
           // pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
+          
+          //! TODO: place file descriptor describing this connection in the buffer, replace all instances of stdin to this fd
+          int fd;
+          buf->rear = fd;
           child = pthread_create(&id, NULL, ThreadedRequest, (void*)(long long)connection); //creates a new thread that executes the function
           //wait for the thread to finish executing 
           pthread_join(id, NULL);
