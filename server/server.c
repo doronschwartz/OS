@@ -2565,6 +2565,7 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
           //! TODO: place file descriptor describing this connection in the buffer, replace all instances of stdin to this fd
           int fd;
           buf->rear = fd;
+          //? where does the fd go?? in the fourth arg??
           child = pthread_create(&id, NULL, ThreadedRequest, (void*)(long long)connection); //creates a new thread that executes the function
           //wait for the thread to finish executing 
           pthread_join(id, NULL);
