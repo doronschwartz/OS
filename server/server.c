@@ -378,7 +378,80 @@ static char *zScgi = 0;          /* Value of the SCGI env variable */
 static int rangeStart = 0;       /* Start of a Range: request */
 static int rangeEnd = 0;         /* End of a Range: request */
 static int maxCpu = MAX_CPU;     /* Maximum CPU time per process */
+static int schedAlg = 0;                     /* 1 is FIFO, 2 is HPIC, 3 is HPHC   */
+static int sizeOfThreadPool = 0;
+static int bufferSize = 0;
+// static __thread int connection;
+static pthread_t *threadpool;
+// static __thread FILE *file;
+static pthread_mutex_t mutexQueue;
+static pthread_cond_t condForConsumer;
+static pthread_cond_t condForProducer;
+static struct Queue* q;
+static struct Queue* p;
+static int numBerOfNodesInBothQueues = 0;
+static char* mimeTypeMain;
 
+struct Node
+{
+  int fd;
+  struct Node* next;
+};
+
+struct Queue
+{
+  struct Node *front, *back;
+  int numberOfNodes;
+};
+struct Node* newNode(int fd){
+    struct Node* temp = (struct Node*)malloc(sizeof(struct Node));
+    temp->fd = fd;
+    temp->next = NULL;
+    return temp;
+}
+struct Queue* createQueue(){
+  struct Queue* q= (struct Queue*)malloc(sizeof(struct Queue)*bufferSize);
+  q->front=q->back=NULL;
+  q->numberOfNodes=0;
+  return q;
+}
+void enQueue(struct Queue* q, int fd)
+{
+
+
+    q->numberOfNodes++;
+    // Create a new LL node
+    struct Node* temp = newNode(fd);
+
+    // If queue is empty, then new node is front and rear both
+    if (q->back == NULL) {
+        q->front = q->back = temp;
+        return;
+    }
+
+    // Add the new node at the end of queue and change rear
+    q->back->next = temp;
+    q->back = temp;
+
+}
+struct Node * deQueue(struct Queue* q)
+{
+
+    // If queue is empty, return NULL.
+    if (q->front == NULL) return NULL;
+
+    // Store previous front and move front one node ahead
+    struct Node* temp = q->front;
+    q->numberOfNodes--;
+
+    q->front = q->front->next;
+
+    // If front becomes NULL, then change rear also as NULL
+    if (q->front == NULL) q->back = NULL;
+    return temp;
+
+    free(temp);
+}
 /* Forward reference */
 static void Malfunction(int errNo, const char *zFormat, ...);
 
@@ -2439,7 +2512,46 @@ typedef union {
   struct sockaddr_in6 sa6;         /* IPv6 */
   struct sockaddr_storage sas;     /* Should be the maximum of the above 3 */
 } address;
+	
+void* createdMethod(void* args)	
+{	
+  while(1){
+        int fd;
+        if(schedAlg==1){
+            pthread_mutex_lock(&mutexQueue);
+            while(q->numberOfNodes == 0){
+                pthread_cond_wait(&condForConsumer, &mutexQueue);
+            }
 
+            struct Node* mynode  = deQueue(q);
+            fd = mynode->fd;
+            pthread_cond_signal(&condForProducer);
+            pthread_mutex_unlock(&mutexQueue);
+
+            ProcessOneRequest(1, fd);
+            close(fd);
+        }else{
+            pthread_mutex_lock(&mutexQueue);
+            while(numBerOfNodesInBothQueues == 0){
+                pthread_cond_wait(&condForConsumer, &mutexQueue);
+            }
+            struct Node* mynode;
+            if(q->numberOfNodes>0){
+                mynode  = deQueue(q);
+            }else{
+              mynode = deQueue(p);
+            }
+
+            fd = mynode->fd;
+            pthread_cond_signal(&condForProducer);
+            pthread_mutex_unlock(&mutexQueue);
+
+            ProcessOneRequest(1, fd);
+            close(fd);
+        }
+}
+}
+/*
 void* ThreadedRequest(void *args) {
   printf("foo\n");
   long httpConnection = (long)args;
@@ -2448,6 +2560,7 @@ void* ThreadedRequest(void *args) {
   printf("hello");
   return NULL;
 }
+*/
 
 /*
 ** Implement an HTTP server daemon listening on port zPort.
@@ -2463,10 +2576,6 @@ void* ThreadedRequest(void *args) {
 ** final argument.
 */
 int http_server(const char *zPort, int localOnly, int * httpConnection){
-  /*
-  todo: instead of forking (2511) a separate copy for each incoming connection, select a thread from the pool 
-  **/
-
 
   int listener[20];            /* The server sockets */
   int connection;              /* A socket for each individual connection */
@@ -2553,50 +2662,61 @@ int http_server(const char *zPort, int localOnly, int * httpConnection){
     for(i=0; i<n; i++){
       if( FD_ISSET(listener[i], &readfds) ){
         lenaddr = sizeof(inaddr);
-        connection = accept(listener[i], &inaddr.sa, &lenaddr);
-        if( connection>=0 ){
-          buf = malloc(sizeof(Buffer_t));
-          // need to create some conditional locks before we create 
-          //master thread creates a new thread to process incoming connection
-          pthread_t id = wpool.next; //create the next available thread in the pool
-          //create a new thread to process the connection
-          // pthread_create(&id, NULL, http_server, (void*)(long long)connection); //creates a new thread that executes the function
-          
-          //! TODO: place file descriptor describing this connection in the buffer, replace all instances of stdin to this fd
-          FILE* fd = stdin;
-          // buf->rear = fd;
-          //? where does the fd go?? in the fourth arg??
-          child = pthread_create(&id, NULL, ThreadedRequest, &fd); //creates a new thread that executes the function
-          //wait for the thread to finish executing 
-          pthread_join(id, NULL);
-          // child = fork();
-          //todo: should check here if the thread was created successfully
-          if(child != 0) {
-            if (child>0) nchildren++;
-            close(connection);
-            /* printf("subprocess %d started...\n", child); fflush(stdout); */
-          }else{
-            // Sll globals that need to be made unique for this thread. Piazza post on how to make thread local.
-            //Really need to print and read from a file instead of this
-            int nErr = 0, fd;
-            close(0);
-            fd = dup(connection);//pass in file descriptor, lowest unused, replaces stdin, now reading network connection as if charachter on keyboard
-            if( fd!=0 ) nErr++;
-            close(1);//Standard out closed
-            fd = dup(connection);//printf will now print to file connection
-            if( fd!=1 ) nErr++;
-            close(connection);
-            //Difficulity, new process versus new threads, all threads share them, so unlike the fork , modify for all, this strategy of replacing standard in
-            // standard out will not work. First thread will kill us, will lose many connections.
-            *httpConnection = fd; // whatever this points to, we shove the file descriptor, so that later it will be stored there
-            return nErr;
-          }
-        }
-      }
+        	
+       if(schedAlg==1){//FIFO
+                connection = accept(listener[i], &inaddr.sa, &lenaddr);
+                if (connection >= 0){
+                    pthread_mutex_lock(&mutexQueue);
+                    while(q->numberOfNodes==bufferSize){
+                        pthread_cond_wait(&condForProducer,&mutexQueue);
+                    }
+                    enQueue(q,connection);
+                    pthread_cond_signal(&condForConsumer);
+                    pthread_mutex_unlock(&mutexQueue);
+                }
+            }else if(schedAlg==2){// 2 is HPIC - priority to jpg
+                int imageContent;
+                connection = accept(listener[i], &inaddr.sa, &lenaddr);
+                void *BigOlBuffer = malloc(10000);
+                ssize_t rec = recv(connection, BigOlBuffer, 10000, MSG_PEEK);
+
+                //ProcessOneRequestMAIN(1, );
+                if(strcmp(mimeTypeMain,"text/html; charset=utf-8")){
+                    imageContent = 0;
+                }else{
+                    imageContent = 1;
+                }
+
+              
+                if (connection >= 0){
+                    pthread_mutex_lock(&mutexQueue);
+                    while(numBerOfNodesInBothQueues==bufferSize){
+                        pthread_cond_wait(&condForProducer,&mutexQueue);
+                    }
+                    if(imageContent==1){//its image
+                        enQueue(q,connection);
+                    }else{
+                        enQueue(p,connection);
+                    }
+                  pthread_cond_signal(&condForConsumer);
+                    pthread_mutex_unlock(&mutexQueue);
+                }
+            }else{
+                connection = accept(listener[i], &inaddr.sa, &lenaddr);
+                if (connection >= 0){
+                    pthread_mutex_lock(&mutexQueue);
+
+                  
+                    while(numBerOfNodesInBothQueues==bufferSize){
+                        pthread_cond_wait(&condForProducer,&mutexQueue);
+                    }
+
+                    pthread_cond_signal(&condForConsumer);
+                    pthread_mutex_unlock(&mutexQueue);
+                }
       /* Bury dead children */
       while( (child = waitpid(0, 0, WNOHANG))>0 ){
-        /* printf("process %d ends\n", child); fflush(stdout); */
-        nchildren--;
+        
       }
     }
   }
@@ -2611,7 +2731,9 @@ int main(int argc, const char **argv){
   int useChrootJail = 1;     /* True to use a change-root jail */
   struct passwd *pwd = 0;    /* Information about the user */
   int httpConnection = 0;    /* Socket ID of inbound http connection */
-
+  pthread_mutex_init(&mutexQueue,NULL);	
+  pthread_cond_init(&condForConsumer,NULL);	
+  pthread_cond_init(&condForProducer,NULL);
   /* Record the time when processing begins.
   */
   gettimeofday(&beginTime, 0);
@@ -2680,21 +2802,55 @@ int main(int argc, const char **argv){
     } else if (strcmp(z, "-threads")) {
     //check threads argument
       //cast zArg to int
-      numThreads = atoi(zArg);
+      sizeOfThreadPool = atoi(zArg);
       // numThreads = zArg;
       //create a thread pool of required size;
-      wpool.size = numThreads;
-      wpool.next = 0; //fixme: g-d knows what is going on here.
+      //fixme: g-d knows what is going on here.
     // } else if () {
       //buffers
     // } else if () {
       //shedlag
+    }	else if (strcmp(z, "-buffers") == 0) {
+      //Store a variable and create the data struct	
+      bufferSize = atoi(zArg);	
+    }	
+    else if (strcmp(z, "-schedalg") == 0)	
+    {	
+      //Switch case	
+      if (strcmp(zArg, "FIFO") == 0)	
+      {	
+        schedAlg = 1;	
+      }	
+      else if (strcmp(zArg, "HPIC") == 0)	
+      {	
+        schedAlg = 2;	
+      }	
+      else if (strcmp(zArg, "HPHC") == 0)	
+      {	
+        schedAlg = 3;	
+      }	else {	
+        Malfunction(515, /* LOG: unknown command-line argument on launch */	
+                    "unknown argument: [%s]\n", z);	
+      }	
+    }
     }else{
       Malfunction(515, /* LOG: unknown command-line argument on launch */
                   "unknown argument: [%s]\n", z);
     }
     argv += 2;
     argc -= 2;
+    q= createQueue();	
+  threadpool = malloc(sizeOfThreadPool*sizeof(pthread_t));	
+    int j;	
+    for(j = 0; j<sizeOfThreadPool; j++){	
+      if(pthread_create(&threadpool[j],NULL,&createdMethod,NULL)!=0){	
+        perror("Thread wasn't created");	
+      }	
+    }	
+  
+  if (schedAlg == 1)	
+  {	
+   
   }
   if( zRoot==0 ){
     if( standalone ){
@@ -2794,7 +2950,7 @@ int main(int argc, const char **argv){
   }
   ProcessOneRequest(1, httpConnection);
   tls_close_conn();
-  free(buf); //fixme:
+  free(buf);
   exit(0);
 }
 
